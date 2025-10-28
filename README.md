@@ -7,7 +7,22 @@
 
 ## 📦 Download  
 최신 실행 파일은 아래 링크에서 다운로드할 수 있습니다.  
-[⬇️ Download Screen Recorder v1.0.0](https://github.com/mavro7910/pyqt-ffmpeg-screenrec/releases/latest)
+[⬇️ Download Screen Recorder v1.0.0](https://github.com/mavro7910/pyqt_ffmpeg_screenrec/releases/latest)
+
+---
+
+## ⚙️ Prerequisites
+
+Before running the program, make sure you have installed these two components:
+
+
+| Item | Description | Download |
+|------|--------------|-----------|
+| 🎬 **FFmpeg** | Core library for video/audio encoding and recording | [🔗 FFmpeg official builds (Windows)](https://www.gyan.dev/ffmpeg/builds/) |
+| 🎧 **VB-Audio Virtual Cable** | Virtual audio device that lets you capture system sound | [🔗 VB-Audio Virtual Cable official site](https://vb-audio.com/Cable/) |
+
+> 💡 After installing FFmpeg, set the path to `ffmpeg.exe` in the program’s settings.  
+> 💡 After installing VB-Audio, “CABLE Output (VB-Audio Virtual Cable)” will appear in the audio device list.
 
 ---
 

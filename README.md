@@ -105,10 +105,10 @@ pip install -r requirements.txt
 
 ```bash
 # 4️⃣ Build .exe
-pyinstaller --noconsole --onefile --clean ^
---name "ScreenRecorder" ^
---icon "assets/app_icon.ico" ^
---add-data "assets;assets" ^
+pyinstaller --noconsole --onefile --clean `
+--name "ScreenRecorder" `
+--icon "assets/app_icon.ico" `
+--add-data "assets;assets" `
 main.py
 ```
 

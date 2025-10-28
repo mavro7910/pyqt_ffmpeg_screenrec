@@ -25,9 +25,9 @@ Before running the program, make sure you have installed these two components:
 > 💡 After installing VB-Audio, “CABLE Output (VB-Audio Virtual Cable)” will appear in the audio device list.
 
 
-![소리 설정 1](./assets/screenshots/how_to_use_1.jpg)
+![소리 설정 1](./assets/screenshots/how_to_use_output.jpg)
 
-![소리 설정 2](./assets/screenshots/how_to_use_2.jpg)
+![소리 설정 2](./assets/screenshots/how_to_use_input.jpg)
 
 
 > 💡 녹화 전에 소리 설정에서 위와 같이 되어 있어야 소리가 녹음 됩니다.

@@ -84,7 +84,7 @@ pyqt-ffmpeg-screenrec/
 ### 1️⃣ Clone this repository
 ```bash
 git clone https://github.com/mavro7910/pyqt_ffmpeg_screenrec
-cd pyqt-ffmpeg-screenrec
+cd pyqt_ffmpeg_screenrec
 ```
 
 ### 2️⃣ Install dependencies

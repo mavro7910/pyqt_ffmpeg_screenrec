@@ -2,7 +2,7 @@
 from __future__ import annotations
 from pathlib import Path
 
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QComboBox, QFileDialog, QSpinBox, QPlainTextEdit, QMessageBox, QLineEdit
@@ -33,6 +33,12 @@ class MainWindow(QMainWindow):
         self._load_initial_state()
         
         self.audio_items = []  # [(label:str, ff_arg:str|None)]
+        
+        self._log_buf = []
+        self._log_timer = QTimer(self)
+        self._log_timer.setInterval(200)        # 0.2초마다 UI 반영
+        self._log_timer.timeout.connect(self._flush_log)
+        self._log_timer.start()
 
     # ---- UI ----
     def _build_ui(self):
@@ -224,8 +230,16 @@ class MainWindow(QMainWindow):
     def _append_log(self, msg: str):
         if not msg:
             return
-        self.log_view.appendPlainText(msg)
-        self.log_view.verticalScrollBar().setValue(self.log_view.verticalScrollBar().maximum())
+        self._log_buf.append(msg)
+        
+    def _flush_log(self):
+        if not self._log_buf:
+            return
+        text = "\n".join(self._log_buf)
+        self._log_buf.clear()
+        self.log_view.appendPlainText(text)
+        sb = self.log_view.verticalScrollBar()
+        sb.setValue(sb.maximum())
 
     def _on_error(self, msg: str):
         self._append_log("[ERROR] " + msg)

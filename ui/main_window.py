@@ -1,3 +1,4 @@
+# ui/main_window.py
 from __future__ import annotations
 from pathlib import Path
 
@@ -9,21 +10,18 @@ from PyQt5.QtWidgets import (
 
 from core.settings import Settings
 from core.monitor_utils import list_monitors, MonitorInfo
-from core.device_utils import list_dshow_audio_devices, pick_virtual_audio, choose_device_arg
+from core.device_utils import list_dshow_audio_devices
 from core.ffmpeg_recorder import FFmpegRecorder, FFmpegOptions
-
-DISPLAY_ROLE = Qt.UserRole + 1
-ARG_ROLE = Qt.UserRole + 2
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("FFmpeg Screen Recorder (dshow auto-pick)")
-        self.setMinimumSize(800, 580)
+        self.setWindowTitle("FFmpeg Screen&Audio Recorder")
+        self.setMinimumSize(720, 520)
 
         self.settings = Settings()
         self.monitors: list[MonitorInfo] = []
-        self.audio_devices = []
+        self.audio_devices: list[str] = []
 
         self.rec = FFmpegRecorder()
         self.rec.started.connect(lambda: self._append_log("녹화 시작"))
@@ -33,11 +31,15 @@ class MainWindow(QMainWindow):
 
         self._build_ui()
         self._load_initial_state()
+        
+        self.audio_items = []  # [(label:str, ff_arg:str|None)]
 
+    # ---- UI ----
     def _build_ui(self):
         cw = QWidget(); self.setCentralWidget(cw)
         root = QVBoxLayout(cw)
 
+        # FFmpeg 경로
         ffmpeg_row = QHBoxLayout()
         self.ffmpeg_edit = QLineEdit(self.settings.get("ffmpeg_path"))
         btn_ffmpeg = QPushButton("찾기…")
@@ -47,6 +49,7 @@ class MainWindow(QMainWindow):
         ffmpeg_row.addWidget(btn_ffmpeg)
         root.addLayout(ffmpeg_row)
 
+        # 출력 폴더
         out_row = QHBoxLayout()
         self.out_edit = QLineEdit(self.settings.get("output_dir"))
         btn_out = QPushButton("폴더…")
@@ -56,21 +59,39 @@ class MainWindow(QMainWindow):
         out_row.addWidget(btn_out)
         root.addLayout(out_row)
 
+        # 모니터/오디오/FPS
         row = QHBoxLayout()
         self.monitor_combo = QComboBox(); self.monitor_combo.setMinimumWidth(320)
-        self.audio_combo = QComboBox(); self.audio_combo.setMinimumWidth(420)
+        self.audio_combo = QComboBox(); self.audio_combo.setMinimumWidth(320)
         self.fps_spin = QSpinBox(); self.fps_spin.setRange(5, 120); self.fps_spin.setValue(int(self.settings.get("video_fps", 30)))
         row.addWidget(QLabel("모니터:")); row.addWidget(self.monitor_combo, 1)
         row.addWidget(QLabel("오디오(dshow):")); row.addWidget(self.audio_combo, 1)
         row.addWidget(QLabel("FPS:")); row.addWidget(self.fps_spin)
         root.addLayout(row)
 
+        # x264 preset
         preset_row = QHBoxLayout()
         self.preset_combo = QComboBox(); self.preset_combo.addItems(["ultrafast", "superfast", "veryfast", "faster", "fast", "medium"])
         self.preset_combo.setCurrentText(self.settings.get("video_preset", "veryfast"))
         preset_row.addWidget(QLabel("x264 preset:")); preset_row.addWidget(self.preset_combo)
         root.addLayout(preset_row)
 
+        # ▼ 추가: 하드웨어 인코더 선택
+        enc_row = QHBoxLayout()
+        self.encoder_combo = QComboBox()
+        self.encoder_combo.addItems([
+            "libx264 (software)",
+            "NVIDIA (h264_nvenc)",
+            "Intel QSV (h264_qsv)",
+            "AMD AMF (h264_amf)",
+            "HEVC NVENC (hevc_nvenc)",
+            "HEVC QSV (hevc_qsv)",
+            "HEVC AMF (hevc_amf)",
+        ])
+        enc_row.addWidget(QLabel("Video Encoder:")); enc_row.addWidget(self.encoder_combo)
+        root.addLayout(enc_row)
+
+        # 버튼
         btn_row = QHBoxLayout()
         self.btn_refresh = QPushButton("장치 새로고침")
         self.btn_start = QPushButton("녹화 시작")
@@ -82,28 +103,26 @@ class MainWindow(QMainWindow):
         btn_row.addWidget(self.btn_stop)
         root.addLayout(btn_row)
 
-        hint = QLabel("VB-CABLE/VoiceMeeter가 있으면 자동 선택됩니다. Alternative name(모니커)을 우선 사용합니다.")
-        hint.setWordWrap(True)
-        root.addWidget(hint)
-
+        # 로그
         self.log_view = QPlainTextEdit(); self.log_view.setReadOnly(True)
         root.addWidget(self.log_view, 1)
 
+        # 이벤트 연결
         self.btn_refresh.clicked.connect(self._refresh_devices)
         self.btn_start.clicked.connect(self._start)
         self.btn_stop.clicked.connect(self._stop)
-   
+
+    # ---- 초기화 ----
     def _load_initial_state(self):
         self._refresh_monitors()
-        ffmpeg_path = (self.ffmpeg_edit.text() or "").strip()
-        if ffmpeg_path:
-            self._refresh_audio()
-        else:
-            self.audio_combo.clear(); self.audio_combo.addItem("(무음)")
-        # 모니터 인덱스 복원
+        self._refresh_audio()
+        # 이전 선택 복원
         saved_idx = int(self.settings.get("monitor_index", 0))
         if 0 <= saved_idx < self.monitor_combo.count():
             self.monitor_combo.setCurrentIndex(saved_idx)
+        saved_audio = self.settings.get("audio_device")
+        if saved_audio and (idx := self.audio_combo.findText(saved_audio)) >= 0:
+            self.audio_combo.setCurrentIndex(idx)
 
     def _refresh_monitors(self):
         try:
@@ -116,39 +135,35 @@ class MainWindow(QMainWindow):
             self.monitor_combo.addItem(f"#{m.index}  {m.width}x{m.height}  @({m.x},{m.y})")
 
     def _refresh_audio(self):
-        ffmpeg_path = (self.ffmpeg_edit.text() or "").strip()
-        if not ffmpeg_path:
-            self.audio_combo.clear(); self.audio_combo.addItem("(무음)")
-            self._append_log("[diag] ffmpeg 경로 비어있음 → dshow 조회 생략")
-            return
+        ffmpeg_path = self.ffmpeg_edit.text().strip() or "ffmpeg"
         devs = list_dshow_audio_devices(ffmpeg_path)
-        self._append_log(f"[diag] dshow devs={len(devs)} from {ffmpeg_path}")  # ★ 몇 개 나왔는지
 
+        # devs 가 문자열 리스트일 수도, 딕셔너리 리스트일 수도 있으니 모두 처리
         self.audio_combo.clear()
+        self.audio_items = []
+        # 0번: 무음
         self.audio_combo.addItem("(무음)")
+        self.audio_items.append(("(무음)", None))
+
         for d in devs:
-            disp, alt = d["display"], d.get("alt","")
-            text = disp if not alt else f'{disp}  —  {alt}'
-            arg  = choose_device_arg(d)
-            idx = self.audio_combo.count()
-            self.audio_combo.addItem(text)
-            self.audio_combo.setItemData(idx, disp, Qt.UserRole+1)
-            self.audio_combo.setItemData(idx, arg,  Qt.UserRole+2)
+            if isinstance(d, dict):
+                # 딕셔너리인 경우: 표시용은 display, ffmpeg 인자는 moniker가 있으면 우선 사용
+                label = d.get("display") or d.get("name") or d.get("moniker") or "Unknown"
+                arg = d.get("moniker") or d.get("display") or d.get("name")
+            else:
+                # 문자열인 경우: 표시/인자 동일
+                label = str(d)
+                arg = label
+            self.audio_combo.addItem(label)
+            self.audio_items.append((label, arg))
 
-
-            vac = pick_virtual_audio(devs)
-            if vac:
-                arg = choose_device_arg(vac)
-                for i in range(self.audio_combo.count()):
-                    if self.audio_combo.itemData(i, Qt.UserRole+2) == arg:
-                        self.audio_combo.setCurrentIndex(i)
-                        break
 
     def _refresh_devices(self):
         self._refresh_monitors()
-        self._refresh_audio()  # 내부에서 경로 체크
+        self._refresh_audio()
         self._append_log("장치 목록 갱신")
 
+    # ---- 동작 ----
     def _start(self):
         if not self.monitors:
             self._on_error("모니터 정보가 없습니다.")
@@ -160,8 +175,32 @@ class MainWindow(QMainWindow):
         fps = int(self.fps_spin.value())
         preset = self.preset_combo.currentText()
 
-        arg = self.audio_combo.itemData(self.audio_combo.currentIndex(), Qt.UserRole+2)
-        audio_mode = "dshow" if arg else "none"
+        idx = self.audio_combo.currentIndex()
+        label, ff_arg = self.audio_items[idx]  # (표시문자열, ffmpeg용 인자)
+
+        if ff_arg is None:  # "(무음)"
+            audio_mode = "none"
+            audio_dev = None
+        else:
+            audio_mode = "dshow"
+            audio_dev = ff_arg  # 모니커가 있으면 그게 들어갑니다
+
+
+        # 인코더 매핑
+        enc_text = self.encoder_combo.currentText()
+        enc_map = {
+            "libx264 (software)": "libx264",
+            "NVIDIA (h264_nvenc)": "h264_nvenc",
+            "Intel QSV (h264_qsv)": "h264_qsv",
+            "AMD AMF (h264_amf)": "h264_amf",
+            "HEVC NVENC (hevc_nvenc)": "hevc_nvenc",
+            "HEVC QSV (hevc_qsv)": "hevc_qsv",
+            "HEVC AMF (hevc_amf)": "hevc_amf",
+        }
+        encoder = enc_map.get(enc_text, "libx264")
+
+        # 설정 저장(dshow일 때만)
+        self.settings.set("audio_device", None if audio_mode != "dshow" else audio_dev)
 
         opt = FFmpegOptions(
             ffmpeg_path=ffmpeg_path,
@@ -170,18 +209,18 @@ class MainWindow(QMainWindow):
             preset=preset,
             monitor=mon,
             audio_mode=audio_mode,
-            audio_arg=arg,
+            audio_device=audio_dev,
+            encoder=encoder,      # ← 추가된 옵션 전달
         )
+
         self.rec.start(opt)
         self.btn_start.setEnabled(False)
         self.btn_stop.setEnabled(True)
 
     def _stop(self):
         self.rec.stop()
-        self._append_log("정지 처리 완료")
-        self.btn_start.setEnabled(True)
-        self.btn_stop.setEnabled(False)
 
+    # ---- 유틸 ----
     def _append_log(self, msg: str):
         if not msg:
             return
@@ -194,13 +233,13 @@ class MainWindow(QMainWindow):
 
     def _on_stopped(self, code: int):
         self._append_log(f"녹화 종료 (exit={code})")
+        self.btn_start.setEnabled(True)
+        self.btn_stop.setEnabled(False)
 
     def _pick_ffmpeg(self):
         path, _ = QFileDialog.getOpenFileName(self, "ffmpeg.exe 선택", "", "ffmpeg (ffmpeg.exe)")
         if path:
             self.ffmpeg_edit.setText(path)
-            self.settings.set("ffmpeg_path", path)
-            self._refresh_audio()  # ★ 경로 설정 직후 장치 재조회
 
     def _pick_out_dir(self):
         d = QFileDialog.getExistingDirectory(self, "출력 폴더 선택", self.out_edit.text())

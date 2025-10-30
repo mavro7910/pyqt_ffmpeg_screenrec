@@ -7,7 +7,7 @@
 
 ## 📦 Download  
 최신 실행 파일은 아래 링크에서 다운로드할 수 있습니다.  
-[⬇️ Download Screen Recorder v1.0.0](https://github.com/mavro7910/pyqt_ffmpeg_screenrec/releases/latest)
+[⬇️ Download Screen Recorder v1.0.2](https://github.com/mavro7910/pyqt_ffmpeg_screenrec/releases/latest)
 
 ---
 
@@ -105,8 +105,7 @@ python main.py
 
 ```bash
 # Clean previous builds
-Remove-Item -Recurse -Force .venv, build, dist
-Remove-Item -Force *.spec
+powershell -Command "Remove-Item -Recurse -Force -Path '.venv', 'build', 'dist'; Remove-Item -Force -Path '*.spec'"
 ```
 
 ```bash
@@ -127,11 +126,7 @@ pip install -r requirements.txt
 
 ```bash
 # 4️⃣ Build .exe
-pyinstaller --noconsole --onefile --clean `
---name "ScreenRecorder" `
---icon "assets/app_icon.ico" `
---add-data "assets;assets" `
-main.py
+pyinstaller --noconsole --onefile --clean --name "ScreenRecorder" --icon "assets/app_icon.ico" --add-data "assets;assets" main.py
 ```
 
 ```bash

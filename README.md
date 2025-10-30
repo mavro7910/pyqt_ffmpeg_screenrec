@@ -75,7 +75,7 @@ pyqt-ffmpeg-screenrec/
 ![app_icon](./assets/app_icon.ico)
 
 ### 🎬 Main Window
-![app_screenshot](./assets/screenshots/main_ui_example.jpg)
+![app_screenshot](./assets/screenshots/main_ui_example_251030.jpg)
 
 ---
 
